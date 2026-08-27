@@ -5,7 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { GripVertical, Plus, Search, Settings2, X } from 'lucide-react'
 
 type Result = { title: string; url: string; snippet: string; source: string }
@@ -59,7 +59,7 @@ export default function Home() {
     },
   })
 
-  const updateGutter = () => {
+  const updateGutter = useCallback(() => {
     if (!editor || !editorRef.current) return
     const { from } = editor.state.selection
     const mapped = blockFromPos(editor, from)
@@ -70,7 +70,7 @@ export default function Home() {
     const br = element.getBoundingClientRect()
     const cr = editorRef.current.getBoundingClientRect()
     setGutter({ pos: mapped.pos, top: br.top - cr.top, height: br.height })
-  }
+  }, [editor])
 
   useEffect(() => {
     if (!editor) return
@@ -81,7 +81,7 @@ export default function Home() {
       editor.off('selectionUpdate', updateGutter)
       editor.off('update', updateGutter)
     }
-  }, [editor])
+  }, [editor, updateGutter])
 
   const handleGutterPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!editor || !editorRef.current) return
