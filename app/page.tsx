@@ -39,7 +39,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [gutter, setGutter] = useState<GutterBlock | null>(null)
-  const [hoveredGutter, setHoveredGutter] = useState(false)
+  const [gutterActive, setGutterActive] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
   const editor = useEditor({
@@ -83,33 +83,38 @@ export default function Home() {
     }
   }, [editor])
 
-  const handleGutterMove = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleGutterPointer = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!editor || !editorRef.current) return
+    if ((event.target as HTMLElement).closest('button')) return
     const rect = editorRef.current.getBoundingClientRect()
-    const elements = Array.from(editor.view.dom.querySelectorAll<HTMLElement>('p,h1,h2,h3,blockquote,pre,li'))
-    const found = elements.find((element) => {
-      const r = element.getBoundingClientRect()
-      return event.clientY >= r.top && event.clientY <= r.bottom && r.left >= rect.left
+    const element = Array.from(editor.view.dom.querySelectorAll<HTMLElement>('p,h1,h2,h3,blockquote,pre,li')).find((candidate) => {
+      const r = candidate.getBoundingClientRect()
+      return event.clientY >= r.top && event.clientY <= r.bottom
     })
-    if (!found) return
-    const pos = editor.view.posAtDOM(found, 0)
-    const r = found.getBoundingClientRect()
+    if (!element) return
+    const pos = editor.view.posAtDOM(element, 0)
+    const r = element.getBoundingClientRect()
     setGutter({ pos, top: r.top - rect.top, height: r.height })
+    setGutterActive(true)
   }
 
   const addBelow = (pos: number) => {
     if (!editor) return
     const mapped = blockFromPos(editor, pos)
     if (!mapped) return
-    editor.chain().focus().insertContentAt(mapped.pos + mapped.node.nodeSize, { type: 'paragraph' }).run()
+    const insertAt = mapped.pos + mapped.node.nodeSize
+    editor.chain().focus().insertContentAt(insertAt, { type: 'paragraph' }).run()
+    editor.commands.setTextSelection(Math.min(insertAt + 1, editor.state.doc.content.size))
   }
 
   const duplicate = (pos: number) => {
     if (!editor) return
     const mapped = blockFromPos(editor, pos)
     if (!mapped) return
+    const insertAt = mapped.pos + mapped.node.nodeSize
     const copy = mapped.node.type.create(mapped.node.attrs, mapped.node.content, mapped.node.marks)
-    editor.view.dispatch(editor.state.tr.insert(mapped.pos + mapped.node.nodeSize, copy))
+    editor.view.dispatch(editor.state.tr.insert(insertAt, copy))
+    editor.commands.setTextSelection(Math.min(insertAt + 1, editor.state.doc.content.size))
   }
 
   const deleteBlock = (pos: number) => {
@@ -201,12 +206,12 @@ export default function Home() {
           <span className="editor-title">NOTION EDITOR CZ</span>
           <button type="button" className="toolbar-button" aria-label="Nastavení editoru" title="Nastavení editoru" onClick={() => setSettingsOpen(true)}><Settings2 size={18} /></button>
         </header>
-        <div className="editor-canvas" ref={editorRef} onMouseMove={handleGutterMove} onMouseLeave={() => setHoveredGutter(false)}>
-          <div className="gutter" onMouseEnter={() => setHoveredGutter(true)}>
-            {gutter && <div className="gutter-hit" style={{ top: gutter.top, height: Math.max(gutter.height, 44) }} onMouseEnter={() => setHoveredGutter(true)} />}
-            {gutter && hoveredGutter && <div className="gutter-control" style={{ top: gutter.top + Math.max(0, (gutter.height - 42) / 2) }}>
+        <div className="editor-canvas" ref={editorRef} onPointerMove={handleGutterPointer} onPointerLeave={() => setGutterActive(false)}>
+          <div className={`gutter ${gutterActive ? 'is-active' : ''}`} onPointerDown={handleGutterPointer}>
+            {gutter && <div className="gutter-hit" style={{ top: gutter.top, height: Math.max(gutter.height, 44) }} />}
+            {gutter && <div className="gutter-control" style={{ top: gutter.top + Math.max(0, (gutter.height - 42) / 2) }}>
               <button type="button" title="Přidat blok" aria-label="Přidat blok" onClick={() => addBelow(gutter.pos)}><Plus size={19} /></button>
-              <button type="button" title="Nabídka bloku" aria-label="Nabídka bloku" onClick={(event) => openMenuAt(event.clientX, event.clientY, gutter.pos)}><GripVertical size={19} /></button>
+              <button type="button" title="Nabídka bloku" aria-label="Nabídka bloku" onClick={(event) => { event.stopPropagation(); openMenuAt(event.clientX, event.clientY, gutter.pos) }}><GripVertical size={19} /></button>
             </div>}
           </div>
           <EditorContent editor={editor} />
